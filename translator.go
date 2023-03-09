@@ -6,9 +6,7 @@
 package gotext
 
 import (
-	"errors"
-	"io/ioutil"
-	"os"
+	"io/fs"
 )
 
 // Translator interface is used by Locale and Po objects.Translator
@@ -66,17 +64,6 @@ func (te *TranslatorEncoding) GetTranslator() Translator {
 }
 
 //getFileData reads a file and returns the byte slice after doing some basic sanity checking
-func getFileData(f string) ([]byte, error) {
-	// Check if file exists
-	info, err := os.Stat(f)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check that isn't a directory
-	if info.IsDir() {
-		return nil, errors.New("cannot parse a directory")
-	}
-
-	return ioutil.ReadFile(f)
+func getFileData(f string, filesystem fs.FS) ([]byte, error) {
+	return fs.ReadFile(filesystem, f)
 }

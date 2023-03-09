@@ -6,6 +6,8 @@
 package gotext
 
 import (
+	"io/fs"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -41,6 +43,7 @@ type Po struct {
 	PluralForms string
 
 	domain *Domain
+	fs     fs.FS
 }
 
 type parseState int
@@ -55,8 +58,14 @@ const (
 
 //NewPo should always be used to instantiate a new Po object
 func NewPo() *Po {
+	return NewPoFS(os.DirFS("/"))
+}
+
+//NewPoFS instantiates a new Po Object with the given FS
+func NewPoFS(f fs.FS) *Po {
 	po := new(Po)
 	po.domain = NewDomain()
+	po.fs = f
 
 	return po
 }
@@ -118,7 +127,7 @@ func (po *Po) UnmarshalBinary(data []byte) error {
 }
 
 func (po *Po) ParseFile(f string) {
-	data, err := getFileData(f)
+	data, err := getFileData(f, po.fs)
 	if err != nil {
 		return
 	}

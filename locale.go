@@ -8,6 +8,7 @@ package gotext
 import (
 	"bytes"
 	"encoding/gob"
+	"io/fs"
 	"os"
 	"path"
 	"sync"
@@ -58,6 +59,9 @@ type Locale struct {
 	// First AddDomain is default Domain
 	defaultDomain string
 
+	// the filesystem to use
+	fs fs.FS
+
 	// Sync Mutex
 	sync.RWMutex
 }
@@ -65,39 +69,56 @@ type Locale struct {
 // NewLocale creates and initializes a new Locale object for a given language.
 // It receives a path for the i18n .po/.mo files directory (p) and a language code to use (l).
 func NewLocale(p, l string) *Locale {
+	return NewLocaleFS(p, l, os.DirFS("/"))
+}
+
+// NewLocaleFS creates and initializes a new Locale object for a given language.
+// It receives a path for the i18n .po/.mo files directory (p) and a language code to use (l).
+// It uses the given fs to open the file
+func NewLocaleFS(p, l string, filesystem fs.FS) *Locale {
 	return &Locale{
 		path:    p,
 		lang:    SimplifiedLocale(l),
+		fs:      filesystem,
 		Domains: make(map[string]Translator),
 	}
 }
 
 func (l *Locale) findExt(dom, ext string) string {
 	filename := path.Join(l.path, l.lang, "LC_MESSAGES", dom+"."+ext)
-	if _, err := os.Stat(filename); err == nil {
+	if _, err := stat(l.fs, filename); err == nil {
 		return filename
 	}
 
 	if len(l.lang) > 2 {
 		filename = path.Join(l.path, l.lang[:2], "LC_MESSAGES", dom+"."+ext)
-		if _, err := os.Stat(filename); err == nil {
+		if _, err := stat(l.fs, filename); err == nil {
 			return filename
 		}
 	}
 
 	filename = path.Join(l.path, l.lang, dom+"."+ext)
-	if _, err := os.Stat(filename); err == nil {
+	if _, err := stat(l.fs, filename); err == nil {
 		return filename
 	}
 
 	if len(l.lang) > 2 {
 		filename = path.Join(l.path, l.lang[:2], dom+"."+ext)
-		if _, err := os.Stat(filename); err == nil {
+		if _, err := stat(l.fs, filename); err == nil {
 			return filename
 		}
 	}
 
 	return ""
+}
+
+func stat(fs fs.FS, filename string) (os.FileInfo, error) {
+	f, err := fs.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return f.Stat()
 }
 
 // AddDomain creates a new domain for a given locale object and initializes the Po object.
@@ -107,7 +128,7 @@ func (l *Locale) AddDomain(dom string) {
 
 	file := l.findExt(dom, "po")
 	if file != "" {
-		poObj = NewPo()
+		poObj = NewPoFS(l.fs)
 		// Parse file.
 		poObj.ParseFile(file)
 	} else {
